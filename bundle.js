@@ -8373,6 +8373,8 @@ var DRAG_HIGHLIGHT_PERIOD = 500;
 var RED_METRICS_HOST = "api.creativeforagingtask.com";
 var RED_METRICS_GAME_VERSION = "dff09f30-f1ca-406a-aff0-7eff70f2563d";
 
+var inTraining = true;
+
 var TRIGGERS = {
   "loadGame": 100, // When loads starts
   "startGame": 3, // When pressing the button "let's play" - (A "start game" trigger)
@@ -8572,11 +8574,12 @@ var TrainingScene = function (_util$Entity2) {
       this.didDropBlock = false;
 
       this.blockScene = new BlockScene(true);
-      this.blockScene.setup();
+      this.blockScene.setup(true);
 
       this.blockScene.preventAddingShape = true;
       document.getElementById("add-shape").style.display = "none";
       document.getElementById("done-adding").style.display = "none";
+      // document.getElementById("square-countdown").style.display = "none";
 
       this.blockScene.on("droppedBlock", this.onDroppedBlock, this);
       this.blockScene.on("addedShape", this.onAddedShape, this);
@@ -8588,7 +8591,8 @@ var TrainingScene = function (_util$Entity2) {
       document.getElementById("after-saving").addEventListener("click", this.onSavingFirstTime.bind(this));
       document.getElementById("done-training-3").addEventListener("click", function (e) {
         _this3.done = true;
-
+        inTraining = false;
+        sceneStartedAt = Date.now();
         sendTrigger("startGame");
       });
     }
@@ -8651,7 +8655,7 @@ var TrainingScene = function (_util$Entity2) {
       document.getElementById("training-3").style.display = "none";
       document.getElementById("training-5").style.display = "block";
       this.blockScene.teardown();
-      this.blockScene.setup();
+      this.blockScene.setup(true);
       this.blockScene.off("addedShape", this.onAddedShape, this);
     }
   }, {
@@ -8674,7 +8678,9 @@ var BlockScene = function (_util$Entity3) {
 
   createClass(BlockScene, [{
     key: "setup",
-    value: function setup() {
+    value: function setup(isTraining) {
+      console.log("is training" + isTraining);
+      this.isTraining = isTraining;
       this.done = false;
       this.draggingBlock = null;
       this.draggingBlockStartGridPosition = null;
@@ -8746,6 +8752,74 @@ var BlockScene = function (_util$Entity3) {
       var doneAddingButton = document.getElementById("done-adding");
       doneAddingButton.addEventListener("click", this.onAttemptDone);
       doneAddingButton.disabled = !allowEarlyExit;
+
+      // Timer for picking up squares
+      if (!this.isTraining) {
+        document.getElementById("square-countdown").style.display = "block";
+        this.startSquaresCountdown();
+      }
+      document.getElementById("square-timeout-done-button").addEventListener("click", this.squareTimeoutOkButton);
+    }
+    /**
+     * Starts countdown when the player is choosing a block. (Called after dropping a square)
+     */
+
+  }, {
+    key: "startSquaresCountdown",
+    value: function startSquaresCountdown() {
+      if (!this.isTraining) {
+        var squareCountdownValue = 60;
+        window.squareCountdown = setInterval(function () {
+          squareCountdownValue--;
+          if (squareCountdownValue > 0) {
+            document.getElementById("square-countdown").innerHTML = squareCountdownValue.toString();
+          } else {
+            clearInterval(window.squareCountdown);
+            document.getElementById("square-countdown").innerHTML = "10";
+            document.getElementById("square-timeout-modal").style.display = "block";
+          }
+        }, 1000);
+      }
+    }
+
+    /**
+     * Stops the countdown timer between choosing squares. (Called after choosing a square)
+     */
+
+  }, {
+    key: "stopSquaresCountdown",
+    value: function stopSquaresCountdown() {
+      if (!this.isTraining) {
+        clearInterval(window.squareCountdown);
+        document.getElementById("square-countdown").innerHTML = "60";
+      }
+    }
+  }, {
+    key: "squareTimeoutOkButton",
+    value: function squareTimeoutOkButton() {
+      document.getElementById("square-timeout-modal").style.display = "none";
+      if (!this.isTraining) {
+        clearInterval(window.squareCountdown);
+        var squareCountdownValue = 10;
+        window.squareCountdown = setInterval(function () {
+          squareCountdownValue--;
+          if (squareCountdownValue > 0) {
+            document.getElementById("square-countdown").innerHTML = squareCountdownValue.toString();
+          } else {
+            clearInterval(window.squareCountdown);
+            // self.disableBlocks();
+            this.timesUp = true;
+            document.getElementById("add-shape").disabled = true;
+            if (galleryShapes.length < 5) {
+              document.getElementById("stuck-message").style.display = "block";
+              document.getElementById("done-adding").disabled = true;
+            } else {
+              document.getElementById("continue-message").style.display = "block";
+              document.getElementById("done-adding").disabled = false;
+            }
+          }
+        }, 1000);
+      }
     }
   }, {
     key: "update",
@@ -8753,6 +8827,7 @@ var BlockScene = function (_util$Entity3) {
       if (this.timesUp) return;
 
       if (timeSinceStart > MAX_SEARCH_TIME) {
+        if (inTraining) return;
         this.timesUp = true;
 
         document.getElementById("add-shape").disabled = true;
@@ -8900,6 +8975,9 @@ var BlockScene = function (_util$Entity3) {
 
       // Disable html buttons
       document.getElementById("html-layer").className = "no-pointer-events";
+
+      // Stop the current squares countdown.
+      this.stopSquaresCountdown();
     }
   }, {
     key: "onPointerUp",
@@ -8921,6 +8999,9 @@ var BlockScene = function (_util$Entity3) {
       document.getElementById("html-layer").className = "";
 
       this.emit("droppedBlock");
+
+      // Start the squares countdown
+      this.startSquaresCountdown();
     }
   }, {
     key: "onPointerMove",
@@ -8981,6 +9062,34 @@ var BlockScene = function (_util$Entity3) {
       }
     }
   }, {
+    key: "disableBlocks",
+    value: function disableBlocks() {
+      var _iteratorNormalCompletion5 = true;
+      var _didIteratorError5 = false;
+      var _iteratorError5 = undefined;
+
+      try {
+        for (var _iterator5 = this.blocksContainer.children[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+          var blockGraphic = _step5.value;
+
+          blockGraphic.interactive = false;
+        }
+      } catch (err) {
+        _didIteratorError5 = true;
+        _iteratorError5 = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion5 && _iterator5.return) {
+            _iterator5.return();
+          }
+        } finally {
+          if (_didIteratorError5) {
+            throw _iteratorError5;
+          }
+        }
+      }
+    }
+  }, {
     key: "dropBlock",
     value: function dropBlock(block, droppedPos) {
       // Find closest grid position
@@ -9009,13 +9118,13 @@ var BlockScene = function (_util$Entity3) {
     key: "findFreeGridPositions",
     value: function findFreeGridPositions() {
       var ret = [];
-      var _iteratorNormalCompletion5 = true;
-      var _didIteratorError5 = false;
-      var _iteratorError5 = undefined;
+      var _iteratorNormalCompletion6 = true;
+      var _didIteratorError6 = false;
+      var _iteratorError6 = undefined;
 
       try {
-        for (var _iterator5 = this.blockGrid[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
-          var b = _step5.value;
+        for (var _iterator6 = this.blockGrid[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
+          var b = _step6.value;
 
           ret.push(new PIXI.Point(b.x - 1, b.y));
           ret.push(new PIXI.Point(b.x + 1, b.y));
@@ -9023,16 +9132,16 @@ var BlockScene = function (_util$Entity3) {
           ret.push(new PIXI.Point(b.x, b.y + 1));
         }
       } catch (err) {
-        _didIteratorError5 = true;
-        _iteratorError5 = err;
+        _didIteratorError6 = true;
+        _iteratorError6 = err;
       } finally {
         try {
-          if (!_iteratorNormalCompletion5 && _iterator5.return) {
-            _iterator5.return();
+          if (!_iteratorNormalCompletion6 && _iterator6.return) {
+            _iterator6.return();
           }
         } finally {
-          if (_didIteratorError5) {
-            throw _iteratorError5;
+          if (_didIteratorError6) {
+            throw _iteratorError6;
           }
         }
       }
@@ -9098,12 +9207,14 @@ var BlockScene = function (_util$Entity3) {
 
       sendTrigger("collectShape");
 
+      this.stopSquaresCountdown();
       var galleryShape = cloneData(this.blockGrid);
       galleryShapes.push(galleryShape);
       this.updateGalleryShape(galleryShape);
 
       document.getElementById("end-early-message").style.display = "none";
-      document.getElementById("add-shape").disabled = true;this.changedShape = false;
+      document.getElementById("add-shape").disabled = true;
+      this.changedShape = false;
 
       redmetricsConnection.postEvent({
         type: "added shape to gallery",
@@ -9112,7 +9223,7 @@ var BlockScene = function (_util$Entity3) {
           timeSinceLastMouseUp: Date.now() - this.lastMouseUpTime
         }
       });
-
+      this.startSquaresCountdown();
       this.emit("addedShape");
     }
   }, {
@@ -9145,27 +9256,27 @@ var BlockScene = function (_util$Entity3) {
     key: "updateGalleryShape",
     value: function updateGalleryShape(galleryShape) {
       this.galleryLayer.removeChildren();
-      var _iteratorNormalCompletion6 = true;
-      var _didIteratorError6 = false;
-      var _iteratorError6 = undefined;
+      var _iteratorNormalCompletion7 = true;
+      var _didIteratorError7 = false;
+      var _iteratorError7 = undefined;
 
       try {
-        for (var _iterator6 = galleryShape[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
-          var block = _step6.value;
+        for (var _iterator7 = galleryShape[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
+          var block = _step7.value;
 
           this.galleryLayer.addChild(makeBlockShape(block));
         }
       } catch (err) {
-        _didIteratorError6 = true;
-        _iteratorError6 = err;
+        _didIteratorError7 = true;
+        _iteratorError7 = err;
       } finally {
         try {
-          if (!_iteratorNormalCompletion6 && _iterator6.return) {
-            _iterator6.return();
+          if (!_iteratorNormalCompletion7 && _iterator7.return) {
+            _iterator7.return();
           }
         } finally {
-          if (_didIteratorError6) {
-            throw _iteratorError6;
+          if (_didIteratorError7) {
+            throw _iteratorError7;
           }
         }
       }
@@ -9236,27 +9347,27 @@ var GalleryScene = function (_util$Entity4) {
         pageContainer.addChild(galleryParent);
 
         var galleryLayer = new PIXI.Container();
-        var _iteratorNormalCompletion7 = true;
-        var _didIteratorError7 = false;
-        var _iteratorError7 = undefined;
+        var _iteratorNormalCompletion8 = true;
+        var _didIteratorError8 = false;
+        var _iteratorError8 = undefined;
 
         try {
-          for (var _iterator7 = galleryShapes[i][Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
-            var block = _step7.value;
+          for (var _iterator8 = galleryShapes[i][Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
+            var block = _step8.value;
 
             galleryLayer.addChild(makeBlockShape(block));
           }
         } catch (err) {
-          _didIteratorError7 = true;
-          _iteratorError7 = err;
+          _didIteratorError8 = true;
+          _iteratorError8 = err;
         } finally {
           try {
-            if (!_iteratorNormalCompletion7 && _iterator7.return) {
-              _iterator7.return();
+            if (!_iteratorNormalCompletion8 && _iterator8.return) {
+              _iterator8.return();
             }
           } finally {
-            if (_didIteratorError7) {
-              throw _iteratorError7;
+            if (_didIteratorError8) {
+              throw _iteratorError8;
             }
           }
         }
@@ -9399,27 +9510,27 @@ var ResultsScene = function (_util$Entity5) {
         }
 
         var searchScorePercent = Math.round(Math.abs(searchScore) * 100);
-        var _iteratorNormalCompletion8 = true;
-        var _didIteratorError8 = false;
-        var _iteratorError8 = undefined;
+        var _iteratorNormalCompletion9 = true;
+        var _didIteratorError9 = false;
+        var _iteratorError9 = undefined;
 
         try {
-          for (var _iterator8 = document.getElementsByClassName("searchScorePercent")[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
-            var el = _step8.value;
+          for (var _iterator9 = document.getElementsByClassName("searchScorePercent")[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
+            var el = _step9.value;
 
             el.innerText = searchScorePercent;
           }
         } catch (err) {
-          _didIteratorError8 = true;
-          _iteratorError8 = err;
+          _didIteratorError9 = true;
+          _iteratorError9 = err;
         } finally {
           try {
-            if (!_iteratorNormalCompletion8 && _iterator8.return) {
-              _iterator8.return();
+            if (!_iteratorNormalCompletion9 && _iterator9.return) {
+              _iterator9.return();
             }
           } finally {
-            if (_didIteratorError8) {
-              throw _iteratorError8;
+            if (_didIteratorError9) {
+              throw _iteratorError9;
             }
           }
         }
@@ -9480,6 +9591,11 @@ var searchParams = new URLSearchParams(window.location.search);
 var allowEarlyExit = searchParams.get("allowEarlyExit") == "true" || searchParams.get("allowEarlyExit") == "1" ? true : false;
 
 var showResults = searchParams.get("showResults") == "true" || searchParams.get("showResults") == "1" ? true : false;
+var timerValue = searchParams.get("length");
+if (timerValue != null) {
+  MAX_SEARCH_TIME = parseInt(timerValue) * 60 * 1000;
+  document.getElementById("game-length-sentence").innerHTML = "\u05D0\u05D5\u05E8\u05DA \u05D4\u05DE\u05E9\u05D7\u05E7 \u05DB- " + parseInt(timerValue) + " \u05D3\u05E7\u05D5\u05EA.";
+}
 
 var galleryShapes = [];
 var searchScore = 0.33;
