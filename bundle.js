@@ -8754,7 +8754,7 @@ var BlockScene = function (_util$Entity3) {
 
       // Timer for picking up squares
       if (!this.isTraining) {
-        document.getElementById("square-countdown").style.display = "block";
+        // document.getElementById("square-countdown").style.display = "block";
         this.startSquaresCountdown();
       }
       document.getElementById("square-timeout-done-button").addEventListener("click", this.squareTimeoutOkButton);
