@@ -8679,7 +8679,6 @@ var BlockScene = function (_util$Entity3) {
   createClass(BlockScene, [{
     key: "setup",
     value: function setup(isTraining) {
-      console.log("is training" + isTraining);
       this.isTraining = isTraining;
       this.done = false;
       this.draggingBlock = null;
@@ -8769,6 +8768,7 @@ var BlockScene = function (_util$Entity3) {
     value: function startSquaresCountdown() {
       if (!this.isTraining) {
         var squareCountdownValue = 60;
+        var self = this;
         window.squareCountdown = setInterval(function () {
           squareCountdownValue--;
           if (squareCountdownValue > 0) {
@@ -8777,6 +8777,7 @@ var BlockScene = function (_util$Entity3) {
             clearInterval(window.squareCountdown);
             document.getElementById("square-countdown").innerHTML = "10";
             document.getElementById("square-timeout-modal").style.display = "block";
+            self.startSecondTimer();
           }
         }, 1000);
       }
@@ -8798,16 +8799,27 @@ var BlockScene = function (_util$Entity3) {
     key: "squareTimeoutOkButton",
     value: function squareTimeoutOkButton() {
       document.getElementById("square-timeout-modal").style.display = "none";
+    }
+
+    /**
+     * This starts the 10 seconds timer that is after the 60 seconds timer for choosing blocks.
+     */
+
+  }, {
+    key: "startSecondTimer",
+    value: function startSecondTimer() {
       if (!this.isTraining) {
         clearInterval(window.squareCountdown);
         var squareCountdownValue = 10;
+        var self = this;
         window.squareCountdown = setInterval(function () {
           squareCountdownValue--;
           if (squareCountdownValue > 0) {
             document.getElementById("square-countdown").innerHTML = squareCountdownValue.toString();
           } else {
             clearInterval(window.squareCountdown);
-            // self.disableBlocks();
+            document.getElementById("square-timeout-modal").style.display = "none";
+            self.disableBlocks();
             this.timesUp = true;
             document.getElementById("add-shape").disabled = true;
             if (galleryShapes.length < 5) {
@@ -9229,7 +9241,6 @@ var BlockScene = function (_util$Entity3) {
   }, {
     key: "onAttemptDone",
     value: function onAttemptDone() {
-      console.log(allowEarlyExit);
       if (this.timesUp || !allowEarlyExit) {
         this.confirmDone();
       } else if (galleryShapes.length < 5) {
@@ -9552,6 +9563,17 @@ var ResultsScene = function (_util$Entity5) {
           document.getElementById("followup-link-container").style.display = "none";
         }
       }
+
+      // Redirecting to a link after the experiment. This is different from the one above
+      // because it doensn't have the parameters. 
+      // TODO delete one of them.
+      if (searchParams.has("urlNextLink")) {
+        var link = searchParams.get("urlNextLink");
+        if (!_.contains(link, "http://")) {
+          link = "http://" + link;
+        }
+        window.location.replace(link);
+      }
     }
   }, {
     key: "teardown",
@@ -9594,7 +9616,9 @@ var showResults = searchParams.get("showResults") == "true" || searchParams.get(
 var timerValue = searchParams.get("length");
 if (timerValue != null) {
   MAX_SEARCH_TIME = parseInt(timerValue) * 60 * 1000;
-  document.getElementById("game-length-sentence").innerHTML = "\u05D0\u05D5\u05E8\u05DA \u05D4\u05DE\u05E9\u05D7\u05E7 \u05DB- " + parseInt(timerValue) + " \u05D3\u05E7\u05D5\u05EA.";
+  //FIXME LANGUAGE DIFF
+  // document.getElementById("game-length-sentence").innerHTML = `אורך המשחק כ- ${parseInt(timerValue)} דקות.`
+  document.getElementById("game-length-sentence").innerHTML = "The game is " + parseInt(timerValue) + " minutes long.";
 }
 
 var galleryShapes = [];
